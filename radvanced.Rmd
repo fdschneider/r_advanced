@@ -1,0 +1,861 @@
+---
+title: "Advanced R"
+author: "Florian D. Schneider"
+date: "November 16, 2015"
+output:
+  html_document:
+    fig_height: 4
+    keep_md: yes
+    toc: yes
+  pdf_document: default
+---
+
+
+<a rel="license" href="http://creativecommons.org/licenses/by/4.0/"><img alt="Creative Commons License" style="border-width:0" src="https://i.creativecommons.org/l/by/4.0/88x31.png" /></a><br /><span xmlns:dct="http://purl.org/dc/terms/" href="http://purl.org/dc/dcmitype/Text" property="dct:title" rel="dct:type">R advanced script</span> by <span xmlns:cc="http://creativecommons.org/ns#" property="cc:attributionName">Florian Schneider</span> is licensed under a <a rel="license" href="http://creativecommons.org/licenses/by/4.0/">Creative Commons Attribution 4.0 International License</a>.
+
+
+This script was written to provide a glimpse of the advanced powers of R programming language. It gives entry points for different topics and features. 
+
+**The presentation slides can be found [here](https://dl.dropboxusercontent.com/u/4625163/AdvancedR/presentation.html)!**
+
+## The problem: simplify computational workflow
+
+The *computational workflow* describes the logical order of tasks from data storage, over data management and analysis, to the final output: a scientific report. This includes the production of plots and tables. 
+
+Such a defined workflow has many advantages: 
+
+- it is easy to reproduce plots and tables if the data change
+- it is easy to reproduce by collaborators, reviewers and your future self
+- it is robust against data errors: figures, tables and analysis are based on the same raw data
+- it is easy to publish (open source)
+
+
+Ideally, the tasks link seamlessly and involve as little steps as possible. We speak of *reproducible workflows* if the links between those tasks are unambiguously defined and documented, e.g. 
+
+1. read raw sampling data from file "rawdata.csv"
+2. read supplementary plot information from "plots.csv"
+3. eliminate irrelevant columns and rows from "rawdata.csv" 
+4. calculate some descriptive statistics for rows in "plots.csv" and merge to rawdata. Save as "data.Rd"
+5. perform statistical test on "data.Rd" and save summary output table to "stats.Rd"
+6. generate plot from "data.Rd" that shows the raw data distribution and save to "fig1.pdf"
+7. generate plot visualising the statistical test (5.) and save to "fig2.pdf"
+8. embed figures and table, as well as values from statistics in manuscript. 
+
+We are going to just this as an exercise and will learn along the way
+
+- recap: what are objects and functions in R? 
+- load data and save output
+- how to calculate summary data from data tables using tapply
+- simple loops with `for()`
+- composing a plot: multi-panel layouts, labels, colors
+- output for production: dynamic reports and tables in word and pdf
+
+--- 
+
+# recap: functions
+
+Functions are the core concept of any programming language. You have a given set of functions that take a particular *input* variable and return a defined *output* variable. The standard format of a function is 
+
+```{r, eval = FALSE}
+function(x, ... )
+```
+
+where `x` is the first argument of the function, it's *input* object^[some functions require a second input argument, or maybe even more], and `...` can be a variable number of function arguments that specify the function's behaviour.
+
+You can see the manual/documentation for any function by calling the `help()` function or `?`, e.g.
+
+```{r, eval = FALSE}
+?lm
+```
+
+---
+
+# 1. read in raw data
+
+## raw-data structure 
+
+Usually, the dataset you want to use was assessed in the experimental environment in the field, or in a laboratory. Either via direct input or via a paper notebook, the data ended up in some spreadsheet software, mostly Excel or Libre Office Calc. 
+
+Of course, R will be able to read in data tables of any structure. Any data structure can be transferred with a couple of lines of code into any form you require. But you can simplify your life if you decide on a **raw data structure** that is easy to handle in R. To achieve this, there are a couple of important rules of thumb: 
+
+- **one line = one data point**
+- **save measured raw data**, no transformed or derived data
+- **save in .csv or .txt format**, not .xxls
+
+**Don't** 
+
+- merge cells 
+- put replicates in the same row
+- put different treatments in the same row
+- keep empty lines (missing data values are okay!)
+
+Ideally, your raw-data file will have precisely one header row (not two rows, no empty rows!), that contains column names. The column names should  
+
+- be unique within the table
+- be unambiguous and easy to remember 
+- use either only lower case *or* only upper case letters
+- not contain spaces or points or special characters, except`_`
+
+I recommend that you use **english column names**, that makes it easier to publish or share your data. For the same reason, make sure your **cells are separated by commas** and your **decimal separator is a point**, e.g. `0.4324`, which is conventional in english language and not a comma `0,4324`! Note that Microsoft Excel by default uses comma decimal separator and semi-colon `;` separators between columns and decimal commas depending if your system language is German!
+
+All this helps to keep your data files simple and unambiguous and forces you to use a clear structure. Ideally, the data file is static and not used for calculations. All calculations and transformations of your data are done in R!
+That helps to build a **reproducible workflow**!
+
+
+## read raw data
+
+To open a file in R you will need one of the following functions.
+
+```{r, eval = FALSE}
+rawdata <- read.table("rawdata.csv", header = TRUE, sep = ",", dec = ".") 
+rawdata <- read.csv2("rawdata.csv", sep = ",", dec = "." )
+rawdata <- read.csv("rawdata.csv")  
+```
+
+These are alternative functions that do mostly the same, but have different default assumptions of the data structure of your text-file "table.csv". For instance `read.csv2()` assumes `;` as field separator and comma `,` as decimal separator, as for files generated in Office with German language settings (see `?read.csv` for further information). 
+
+## Exercise 1
+
+We are assuming an experiment with 12 grassland plots of varying land use intensity that are distributed in a larger landscape. The amount of fertilization, frequency of grazing by cattle and mowing are documented for each plot. Also, each plot has a small weather station that measures temperature and precipitation. On four subplots, insect diversity is assessed, two of which are fenced against grazing by large herbivores. Sampling was done in two years (2013,2014). The data files rawdata.csv and plots.csv contain the response data on the sub-plots and the explanatory data on the plots. 
+ 
+- read data tables: "rawdata.csv" and "plots.csv"
+
+```{r, echo = FALSE}
+rawdata <- read.csv("rawdata.csv")  
+plots <- read.csv("plots.csv")  
+```
+
+For most of what follows, we are working with the most common format for experimental data, which is a data table, or 'dataframe' in R. This means that the columns of the table contain information about the characteristics of the sampling point, the treatment, the cofactors, and the value(s) of interest. Each replicated measurement has its own row. But there are other classes of objects in R: 
+
+---
+
+# recap: object classes
+
+**[Excurse: Objects]()**
+
+In general, variables are 'objects'. There are many object classes that come with different features. Just a few examples: 
+
+```{r}
+ f <- as.factor(c("A", "A", "B", "C", "A", "B", "B", "C", "C")); class(f)
+ m <- matrix(sample(1:25,25), nrow = 5); class(m)
+ d <- data.frame(x = f, y = c(1,1,1.4,1.2,1.3,1.2,1.4,1.2,1.1)); class(d)
+ l <- list(sample = f, covars = d, mat = m); class(l)
+ model <- lm(d$y ~ d$x); class(model)
+ b <- TRUE; class(b)
+```
+
+The **main purpose of an object class is standardisation**. Functions defined to handle an object class will know where to find which information, e.g. the columns and rows of a matrix, the entries of a list, the coefficients of a linear model. Many more object classes do exist.
+
+Note that **most complex objects are actually lists** that were created following a particular structure. 
+Most packages add a couple of new object classes to your R installation which might specify the consumers of a food web, the species names of a dataset, the GPS coordinates of your sample point. 
+
+
+### access content of an object
+
+There are two ways to access content of an object: 
+
+ - access by position
+ - access by name
+
+The easiest way is to use the squared brackets `[]` to address a particular position in the object. This allows you to extract a single value or range of values of a vector
+
+```{r}
+f[3] #Note that factor levels are not dropped for such subsets!!
+f[3:6]
+```
+
+or the columns or rows of a data frame or matrix
+
+```{r, eval = FALSE}
+d[,1]
+d[1:3,]
+m[1:3,1:3]
+```
+
+Note that the **first value in the squared brackets gives the rows, the second gives the columns**. 
+
+Another important feature of this kind of subsetting is that you can not only reduce a vector or a dataframe, but also extend it by applying a selector that is longer than the original data with repeated nominations. 
+
+```{r}
+m
+m[,rep(1:5,2)]
+col <- c("black","gray50")
+col[c(1,2,2,2,1,1,1,1,2)]
+```
+
+This can be useful for coercing the content of a data table or selecting colors of data points by factor.
+
+
+To access list entries, which applies to most complex objects that you will encounter in R, you will have to use the double squared brackets. 
+
+```{r}
+l[[2]]
+```
+
+Note that you can sequentially combine these prompts:
+
+```{r}
+l[[2]][1:4,]
+```
+
+The second method to access content is 'by name', which works for the columns of data frames and the entries in lists. To do this, the object entries have to have names in the first place. 
+
+```{r}
+d$x
+l$f
+l$covars$x
+model$coefficients
+```
+
+---
+
+
+# 2. data handling
+
+## select data columns 
+
+Once you have read-in a data table, you mostly need only some of the columns to do your further calculations. Most beginners guides describe `attach()` and `detach()` to access data within a table. 
+
+```{r, eval = FALSE}
+str(rawdata)
+attach(rawdata)
+plot(shannon ~ fenced)
+detach(rawdata)
+```
+
+This clutters the R environment with a lot of invisible objects. People do often forget to detach databases and then objects are difficult to handle and to remove. Also, if you modify those objects, they will not affect the master table, which remains in the state it was before it was attached. **Using `attach()` is considered bad practice!**
+
+Rather you should access content directly. The easiest way would be to use the `$` or `[]` selector (see above). 
+
+```{r, eval = FALSE}
+lm(rawdata$shannon ~  rawdata$fenced)
+```
+
+or, to extract only what you need into new objects. 
+```{r, eval = FALSE}
+shannon <- rawdata$shannon
+fenced <- rawdata$fenced
+lm(shannon ~ fenced)
+```
+
+You could also use the function `with()` which creates a temporary environment where the content of your data table is available:
+
+```{r, eval = FALSE}
+with(rawdata, lm(shannon ~ fenced))
+```
+
+**Best practice advice!** Keep the table structure of your data object intact and tell the functions were to find the columns using the `data` parameter, which is available in many statistical functions and plotting functions:
+
+```{r, eval = FALSE}
+lm(shannon ~ fenced, data = rawdata)
+```
+
+
+## select data rows
+
+In complex data sets, you often want to exclude part of it before you go on with your analysis or plot only part of your based on a condition, e.g. to show the data of only one treatment and not the other.
+
+We already mentioned the squared brackets `[]`  to select a part of a vector or a data frame.
+
+To exclude one row of data, e.g. because you know that the replicate was methodologically flawed or an extreme outlier, the simplest way is to do 
+
+```{r, eval = FALSE}
+data1 <- rawdata[-c(42)]
+```
+
+Or you might want to exclude a sequence of data for similar reasons. 
+
+```{r, eval = FALSE}
+data1 <- rawdata[-c(42:64)]
+```
+
+
+In most cases, the rows you want to exclude are loosely mixed into your dataset. Or you want to select rows by a condition. Conditionals are based on  'logical expressions', a concept that is common to all programming languages:
+
+- `A == B` : A equals B 
+- `A != B` : A is unequal to B
+- `A < B`, `A > B` : A is less than B, A is greater than B
+- `A <= B`, `A >= B` : A is less than or equal to B, A is greater than or equal to B
+- `A %in% B` : The value in A is contained in vector B
+
+Thus, if A and B are numerical values, the expression returns logical values: `TRUE` or `FALSE`. If the logical operator is comparing a value and a vector, it returns a **logical vector**!
+
+```{r}
+1:12 > 6
+f
+f == "A"
+6 %in% 1:5 
+c("SCH", "HAI", "ALB") %in% c("HAI") 
+```
+
+These logical vectors can be used to select rows from a data table. 
+
+```{r}
+d
+d[d$x == "C",]
+d[d$y >= 1.3,]
+```
+
+An alternative method is to use the `subset()` function, which is useful for the use in the data argument of plotting or model functions. 
+
+```{r}
+d
+subset(d, x == "C")
+subset(d, y >= 1.3)
+```
+
+**A side note on factor levels:** Any factor levels of the original vector or dataframe will be preserved if you use `[]` or `subset()`. If you want to eliminate unused factor levels you should specify the argument `drop = TRUE`:
+
+```{r}
+f[f == "A"]
+f[f == "A", drop = TRUE]
+```
+
+
+## merge data frames 
+
+An important function when working with multiple datatables is the function `merge()`. It allows to combine two tables of different columns by matching the rows by a column in table `x` with a column in table `y`. The rows in the shorter table will be repeated to match the rows in the longer one. 
+
+```{r}
+d
+p <- data.frame(id = c("A", "B", "C"), value = c(425,754,542))
+p
+merge(d, p, by.x = "x", by.y = "id")
+```
+
+The function `cbind()` and `rbind()` also allow to merge dataframes by appending them column-wise or row-wise. This can be used when merging data of the same structure into one table (`rbind()`) or when merging data tables of identical rows, but with different content (`cbind()`). 
+
+```{r}
+cbind(ID = 1:9, d)
+rbind(d, c("C", 1.4))
+rbind(d,d)
+```
+
+## Exercise 2
+
+- The rawdata object contains notes on some flawed data points. It is a good idea to eliminate them before use.^[ `data <- rawdata[rawdata$notes == ""]` ]
+- The species sampling was done in 2013. Species data for 2014 are not available yet. Eliminate 2014 values from `plots`!
+- merge the plot information of 2013 to the rawdata table. 
+- save the result as your working data `data.Rd` or `data.csv`.
+
+```{r}
+data <- subset(rawdata, notes == "")
+plots2013 <- subset(plots, year == "2013")
+data <- cbind(data, plots2013[match(data$plot, plots2013$plot), -c(1,2)])
+write.csv(data, "data.csv")
+save(data, data, file = "data.Rd")
+```
+
+*Note*: The specific R data file format also is a simple text file, but it maintains the full object structure. This is particularly useful when saving list objects such as output of a statistical model. 
+
+# 3. data analysis
+
+## statistical modelling
+
+I will not cover this in this script. Most statistical models have the same structure:
+
+```{r}
+model <- lm(shannon ~ grazing * fenced, data = data )
+anova(model)
+```
+
+In R the functions `anova()` or `summary()` know how to handle output of all modelling functions and produce the appropriate output via function 'methods', i.e. object class specific variants of the functions. E.g. the output of a linear model object of class `"lm"` is handled by the method `anova.lm()` and `summary.lm()`. You can access their specific help files by typing `?anova.lm` and `?summary.lm`. The same works for `glm`, `nlme`, etc. 
+
+## aggregate and transform data
+
+This will be part of a future script.  
+
+- `apply()`
+- `tapply()`
+- `for()` loops
+- package `plyr` and `dplyr`
+
+please look up documentations and help files. 
+
+## advanced programming structures
+
+Loops are a common feature of all programming languages. There are two types of loops:
+
+- `for()` iterates a task for a certain range of factorial or integer values. 
+- `while()` iterates a task until a condition is met. 
+
+Conditions are another feature that are important to programming in general. In R, this is achieved by the `if()` and `else()` function.
+
+
+
+# 4. Plotting
+
+In R, plotting commands are either **high-level**, which means they create a new plot, or **low-level**, which means they add something to an existing plot. Additionally, on the highest level, there are the **graphical parameters** which define the plotting canvas, like margins and multi-panel arrangements. Finally, there are multiple **graphics devices**, virtual devices in which the plot is created. The default device is a window on your screen, but you also can open a file device (pdf or jpg) and put your plot there. 
+
+## high-level commands
+
+Examples for high level plotting functions are:
+
+scatterplots: `plot()`
+
+```{r}
+plot(shannon ~ grazing, data = data)
+```
+
+
+- line plots: `plot(..., type = "l")`
+
+```{r}
+x <- z <- seq(0,1,length = 50)
+plot(seq(0,1,length = 50), 0.2 + 0.4*x - 1.5*x^2 + 1.15*x^3 , type = "l", ylim = c(0,0.5), ylab = "Y", xlab = "x")
+```
+
+
+
+- boxplots: `boxplot()`
+
+```{r}
+boxplot(shannon ~ fenced, data = data)
+```
+
+-  histograms: `hist()`
+
+```{r}
+hist(data$shannon, breaks = 24)
+```
+
+- 3D perspective plots: `persp()`
+
+```{r}
+x <- y <- seq(0,1,length = 25)
+dd <- expand.grid(data.frame(x,y))
+dd$z <- with(dd, 0.1 + 0.4*x - 1.5*x^2 + 1.15*x^3 + 0.2*y - 0.4*y^2 + 0.3*y^3 + 0.2*x*y - 0.23 *x^2*y^2 + 0.33 *x^3*y^3)
+persp(x,y,z = matrix(dd$z, nrow = 25, byrow = FALSE), ticktype = "detailed", zlim = c(0,0.6), shade = 0.4) 
+```
+
+The typical high-level plot options include
+
+- **plotting region**: axis limits (`xlim` and `ylim`, `xaxs` and `yaxs`), boxtype (`bty`) and background (`bg`), fix aspect ratio (`asp`)
+- **axis style**: logarithmic plotting (`log = "xy"`), axis label orientation (`las`), font size (`cex.axis`), specify tick mark labels (`labels`), tick mark position (`xaxp` and `yaxp`) , tick length (`tck`)
+- **text labels**: axis labels (`ylab` and `xlab`), plot titles (`main` and `sub`)
+- **point formatting**: point size (`cex`), point character (`pch`), colors (`col` and `fg`) 
+- **line formatting**: line type (`lty`) and line width (`lwd`), colors (`col`) 
+
+look up `?par` and plot specific help files (e.g. `?boxplot`).
+
+
+## low-level commands
+
+In contrast, low level plotting commands are adding something to an existing plot
+
+- data (`points()` or `symbols()`)
+
+```{r}
+plot(shannon ~ grazing, ylim = c(0,3), 
+     data = subset(data, fenced == TRUE), pch = 20 )
+points(shannon ~ grazing, data = subset(data, fenced == FALSE), 
+      pch = 20, col = "red")
+```
+
+- lines & curves (`lines()`, `abline()`)
+
+```{r}
+plot(shannon ~ grazing, ylim = c(0,3), data = data, pch = 20 )
+model <- lm(shannon ~ grazing, data = data )
+abline(model)
+lines(c(1,4), c(3,2), lwd  = 2)
+```
+
+- axes (`axis()`)
+
+```{r}
+plot(shannon ~ grazing, ylim = c(0,3), data = data, pch = 20 )
+axis(4)
+```
+
+- legends (`legend()`)
+
+```{r}
+plot(shannon ~ grazing, ylim = c(0,3), data = data, 
+     pch = 20, col =c("black", "red")[fenced+1] )
+legend(3.5,3, c("open", "exclosure"), pch = c(20), 
+       col = c("black", "red"))
+```
+
+- labels and text (`text()` and `mtext()`)
+
+```{r}
+plot(shannon ~ grazing, ylim = c(0,3), data = data, 
+     pch = 20, col =c("black", "red")[fenced+1] )
+mtext("a)", adj = 0, line = 0.3)
+```
+
+Tipp: The parameter `xpd = TRUE` allows to plot outside of plotting region. 
+
+```{r}
+plot(shannon ~ grazing, ylim = c(0,3), data = data, 
+     pch = 20, col =c("black", "red")[fenced+1] )
+lines(c(0,200),c(3.4,3.4),xpd = TRUE)
+```
+
+
+You can look up the options in `?par` and the specific low-level plotting functions!
+ 
+ 
+## graphical parameters
+
+The graphical parameters are ususally defined before a high-level plot is called using the function `par()`. They set the scene for the plot(s) that follow and are valid until the graphics device is terminated using `dev.off()`. 
+
+The most common settings here are the outer and inner margins.  
+
+```{r, echo = FALSE}
+par(mfrow = c(1,1), oma = c(0,0,0,0),mar = c(0,0,0,0), bg = "grey70")
+plot(1,1, bty = "o", type = "n", xaxt = "n", yaxt = "n", bty = "o", fg = "grey50")
+
+par(oma = c(2,2,1,1),mar = c(0,0,0,0), new = TRUE)
+plot(1,1, bty = "n", type = "n", xaxt = "n", yaxt = "n", bty = "o", fg = "grey50")
+#abline(v = 1, col = "grey50")
+
+par(mar = c(5,4,3,3)+0.1, new = TRUE)
+plot(1, 1, bty = "n", type = "n", xaxt = "s", yaxt = "s", bty = "o", xlab = "x", ylab = "y")
+rect(0,0,2,2, col = "white")
+box(col = "black", bty = "o")
+
+```
+
+The outer margins are mostly invisible and set to c(0,0,0,0) by default.
+
+```{r, eval = FALSE}
+par(oma = c(2,2,1,1) )
+plot( ... )
+```
+
+The vector defines the lower, left, upper and right margin in the unit 'lines of text'. Thus, if you modify text size the margins will change. 
+
+The inner margins are used quite frequently. The default values are quite large and can be reduced. 
+
+```{r, eval = FALSE}
+par(mar = c(4,4,1,1) )
+plot( ... )
+```
+
+Be aware that if you reduce margin below a value of 4 the axis labels might be outside of the plotting frame. 
+
+Another important feature of graphical parameters is the definition of multi panel grids using `mfrow` and `mfcol`
+
+## some examples 
+
+### format points
+
+Particularly important for scatter plots are the point formatting arguments which can take a single value or a vector of values, which allows you to specify the shape of each single data point.
+
+```{r}
+plot(shannon ~ grazing, data = data, 
+     pch = c(18,20)[fenced+1],  
+     col = c( "black", "red")[fenced+1]
+     )
+```
+
+Tipps:
+
+- `pch` can be characters: `pch = c("A","B")`
+- use filled characters (diamonds `18` or points `20`) rather than open ones (crosses `3` or `4` or circles `1`)
+- use distinctive colors, if any
+
+table of point characters:
+
+```{r, echo = FALSE, fig.width = 8, fig.heigt = 7}
+pchShow <-
+  function(extras = c("*",".", "o","O","0","+","-","|","%","#"),
+           cex = 3, ## good for both .Device=="postscript" and "x11"
+           col = "red3", bg = "gold", coltext = "brown", cextext = 1.2,
+           main = paste("plot symbols :  points (...  pch = *, cex =",
+                        cex,")"))
+  {
+    nex <- length(extras)
+    np  <- 26 + nex
+    ipch <- 0:(np-1)
+    k <- floor(sqrt(np))
+    dd <- c(-1,1)/2
+    rx <- dd + range(ix <- ipch %/% k)
+    ry <- dd + range(iy <- 3 + (k-1)- ipch %% k)
+    pch <- as.list(ipch) # list with integers & strings
+    if(nex > 0) pch[26+ 1:nex] <- as.list(extras)
+    plot(rx, ry, type = "n", axes  =  FALSE, xlab = "", ylab = "", main = main)
+    abline(v = ix, h = iy, col = "lightgray", lty = "dotted")
+    for(i in 1:np) {
+      pc <- pch[[i]]
+      ## 'col' symbols with a 'bg'-colored interior (where available) :
+      points(ix[i], iy[i], pch = pc, col = col, bg = bg, cex = cex)
+      if(cextext > 0)
+          text(ix[i] - 0.3, iy[i], pc, col = coltext, cex = cextext)
+    }
+  }
+
+pchShow()
+```
+
+
+### add model lines
+
+To add lines of a fitted linear model we can apply the  function `predict()` to simulate a new vector of predicted values for a equidistant gradient along our x-axis. 
+
+```{r}
+model <- lm(shannon ~ grazing * fenced, data = data)
+grazing_new <- seq(0, 500, length = 51)  # generates new x-values
+
+shannon_pred <- predict(model,     # simulate y-values
+                    newdata = list(
+                      grazing = grazing_new, 
+                      fenced = rep(FALSE, 51)
+                      ), interval =  "confidence"
+                    )
+```
+
+The predict function takes the model object and then applies the model equation to a set of new explanatory values provided as a list in `newdata`. Take care that there is one vector for each explanatory variable of the model (here: `grazing` and `fenced`) and that they are of equal length. See `?predict.lm` for further information on the function method. 
+
+Then, you can add the model line to your plot including lower and upper confidence bands. 
+
+```{r}
+plot(shannon ~ grazing, data = data, pch = 20, col = c("black", "grey60")[fenced+1])
+lines(grazing_new, shannon_pred[,"fit"])
+lines(grazing_new, shannon_pred[,"lwr"], lty = 3)
+lines(grazing_new, shannon_pred[,"upr"], lty = 3)
+```
+
+Note that the package `ggplot2` provides some tools to generate confidence intervals.  
+
+### pretty boxplots
+
+Box plots are noisy by default. 
+
+```{r, fig.width = 4}
+boxplot(shannon ~ fenced, data = data, ylim = c(0,3) )
+```
+
+They can be simplified by using their internal `pars` argument. See `?boxplot` and `?bxp`for further information. 
+
+```{r, fig.width = 4}
+boxplot(shannon ~ fenced, data = data, ylim = c(0,3),
+        pars = list(boxwex = 0.4, staplewex = 0, 
+                    whiskwex = 0, whisklty = 1))
+```
+
+
+### multi-panel plotting
+
+By default, a single plot is plotted to the device, and it is overwritten, or a second page is prompted if another high-level plotting function is called. 
+
+The option `par(mfrow = c(2,1))` allows with little effort to create regular multi-panel plots. But these are all of equal height and width. 
+
+```{r}
+par(mfrow = c(2,3))
+layout.show(n = 6)
+```
+
+More advanced is the `layout()` function, which uses a matrix grid to define the space occupied by the different plots. 
+
+```{r}
+(m <- matrix(c(1,1,1,2,3,6,4,5,6), byrow = TRUE, ncol = 3))
+layout(m)
+layout.show(n = 6)
+```
+
+This is very flexible, since further parameters can be used to define width and height of the columns. 
+
+```{r}
+layout(m , height = c(1,2,2), width = c(2,2,1))
+layout.show(n = 6)
+```
+
+In combination this allows for highly complex plotting layouts.
+
+```{r, fig.height = 7, fig.width = 9}
+m <- matrix(rep(0, 36), byrow = TRUE, ncol = 6)
+m[1:5,1:5] <- 1
+m[6,1:2] <- 2
+m[6,3:4] <- 3
+m[6,5:6] <- 4
+m[1:2,4:5] <- 5
+m[1:3,6] <- 6
+m
+layout(m , height = c(1,1,1,1,1,3), width = c(1,2,1,2,1,2))
+layout.show(n = 6)
+
+par(mar = c(4,4,1,3))
+plot(shannon ~ grazing, data = data, ylim = c(0,3), cex = 2)
+mtext("a)", adj = 0, line = -1.5)
+par(mar = c(5,4,1,1))
+boxplot(shannon ~ I(grazing > 0), data = data)
+mtext("b)", adj = 0, line = -1.5)
+boxplot(shannon ~ I(fertilization > 30), data = data)
+mtext("c)", adj = 0, line = -1.5)
+boxplot(shannon ~ I(mowing > 0), data = data)
+mtext("d)", adj = 0, line = -1.5)
+
+par(mar = c(4,4,2,4))
+hist(data$shannon, main = NA, col = "black", breaks = seq(0,3,0.1), xlab = NA)
+par(mar = c(1,1,1,1))
+contour(x,y, matrix(dd$z, nrow = 25, byrow = FALSE))
+mtext("e)", adj = 0, line = -1.5)
+
+```
+
+Note that the first plot spans over matrix cells that are later hidden by another figure. 
+
+
+
+## Exercise 4
+
+- try to reproduce as many features of this plot as you can:
+
+```{r, echo = FALSE}
+par(mar = c(4,4,1,1), las = 1, bty = "l")
+plot(shannon ~ grazing, data = data, yaxp = c(0,3,3), ylim = c(0,3),  yaxs = "i", pch = c(21), bg = c("black", "white")[fenced+1])
+legend(3.5,3, c("open", "exclosure"),pch = c(21), pt.bg = c("black", "white"), bty = "n")
+```
+
+It is showing diversity as a response to grazing in the 2013 data. 
+
+- horizontal axis labels: `par(las = 1)`
+- open box around plot: `par(bty = "l")`
+- reduced margins: `par(mar = c(4,4,1,1))` 
+- differentiate point characters: 
+  `plot(..., pch = 21, bg = c("black", "white")[fenced+1])`
+- set axis lengths: 
+  `plot(..., yaxp = c(0,3,3), ylim = c(0,3), yaxs = "i")`
+- axis labels: 
+  `plot(..., ylab = "Diversity", xlab = "grazing [livestock units/ha]")`
+- add legend: 
+  `legend(3.5,3, c("open", "exclosure"), pch = 21, pt.bg = c("black", "white"))` 
+- add lines: use of `lm()`, `predict()` and `lines()`
+
+
+# 5. production output 
+
+## save plots to file
+
+By default, R plots figures into the screen graphics device (windows in Windows, X11 in Ubuntu and Mac), which pops up in a new window. Via buttons, this picture can be exported to files. 
+Alternatively, you can print plots directly into a file, or a virtual 'device'. When producing figures for production, i.e. files for submission or to embed in presentations, it is important to chose the right file format. 
+
+The journal requirements often ask for these things
+
+- figure size
+- serif or sans font
+- raster or vector format
+
+there are different graphics devices and they can be sorted into raster formats or vector formats: 
+
+Raster formats:
+
+- `bmp()` for bitmap files (no compression)
+- `png()` for gif and png files (selective color)
+- `jpg()` for jpg (pixel compression)
+- `tiff()` for tiff files (best quality/compression trade-off)
+
+Vector formats:
+
+- `pdf()` for pdf plotting  
+- `postscript()` for .eps files
+
+
+Mostly, vector format is what journals want, because its scalable without loss and the file size is small. Use raster formats for plots with many (>1000) datapoints or for presentations on screen, because they are more reliable. Use `png()` for black-and-white plots in high-resolution!
+
+
+```{r, eval = FALSE}
+pdf("filename.pdf", 
+    width = 7, height = 6,  #in inches: 1in = 2.54cm
+    paper = "special",  # or "a4"
+    useDingbats = FALSE, # avoids weird symbols
+    family = "Times" # for journals that want serif
+    )
+
+plot(...)
+
+dev.off()
+```
+
+Note that multiple high-level plot calls in a pdf device create multi-page pdfs!
+
+
+```{r, eval = FALSE}
+png("filename.png", 
+    width = 460, height = 720,  #in pixels
+    res = 72, # set relative size of plot
+    antialias = "none" # no smoothing of pixelation 
+    family = "Times" # for journals that want serif
+    )
+
+plot(...)
+
+dev.off()
+```
+
+## Exercise 5
+
+- create a .pdf and a .jpg of your previous plot
+
+
+## dynamic reports with knitr & Rmarkdown
+
+## Markdown 
+
+Markdown is a simple markup language that was invented for websites but also found a useful application in academic writing. It seperates content from style and minimizes the formatting to a very simple set of commands: 
+
+```
+# Title
+
+## section 
+
+text with *italics* and **bold** word highlighting.
+
+- lists
+- second point
+
+## section
+
+...
+
+```
+
+Many more features are added by the powerful command line tool [pandoc](http://pandoc.org/getting-started.html), which is forming the backbone of the R packages [knitr](http://yihui.name/knitr/) and [rmarkdown](http://rmarkdown.rstudio.com/). 
+
+## Rmarkdown
+
+The Rmarkdown package combines Markdown with R code chunks, blocks of code that are evaluated into figures or output and then embedded into the text. Further features are 
+
+- automatic bibliography
+- mathematical equations using LaTeX syntax
+- latex/pdf and word output
+
+It is easy to mix narrative, code, analysis and figures. This is ideal for documenting your data exploration or analysis or even for writing whole manuscripts. 
+
+RStudio comes with [Rmarkdown](http://rmarkdown.rstudio.com/) and provides useful templates and examples. 
+
+see [Rmarkdowndemo.Rmd]() 
+
+```{r, eval = FALSE}
+library(rmarkdown)
+render("Rmarkdowndemo.Rmd", pdf_document())
+```
+
+## output tables with knitr
+
+knitr is an R package that turns code to plaintext output.
+
+```{r}
+library(knitr)
+kable(anova(model), digits = 3)
+```
+
+see [table_demo.Rmd]() 
+
+```{r, eval = FALSE}
+library(rmarkdown)
+render("table_demo.Rmd", word_document())
+```
+
+
+## Further reading:
+
+- http://adv-r.had.co.nz/ : an online book by Hadley Wickham on realy advanced things
+- http://www.rdocumentation.org/ : a collection of manual files for all R packages
+- http://rmarkdown.rstudio.com/ : on dynamic reports
+- http://www.r-bloggers.com/ : a blog aggregator for all things in R
+
+
