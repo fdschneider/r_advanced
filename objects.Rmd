@@ -1,0 +1,208 @@
+---
+title: "excurse: Objects & Functions"
+author: "Florian D. Schneider"
+date: "November 16, 2015"
+output:
+  html_document:
+    fig_height: 4
+    keep_md: yes
+    toc: yes
+  pdf_document: default
+---
+
+
+<a rel="license" href="http://creativecommons.org/licenses/by/4.0/"><img alt="Creative Commons License" style="border-width:0" src="https://i.creativecommons.org/l/by/4.0/88x31.png" /></a><br /><span xmlns:dct="http://purl.org/dc/terms/" href="http://purl.org/dc/dcmitype/Text" property="dct:title" rel="dct:type">R advanced script</span> by <span xmlns:cc="http://creativecommons.org/ns#" property="cc:attributionName">Florian Schneider</span> is licensed under a <a rel="license" href="http://creativecommons.org/licenses/by/4.0/">Creative Commons Attribution 4.0 International License</a>.
+
+
+# objects
+
+As a very essential principle, remember that 
+
+> Everything in R is an object. 
+
+As a programming language, R handles variables. They are assigned using the `<-` arrow. Once assigned, you can call the content of an object by typing its name. This means, that anything that you can call in R by typing its name, is stored in a particular structure that is well defined by its **object class**. 
+
+## types of data
+
+There are different types of data  that R can handle. The following objects do have different specifications. 
+
+```{r, echo = FALSE}
+ x <- 432/152;  typeof(x)
+ v <- c(21,32,3,42,53,43,64,23,34); typeof(v)
+ b <- TRUE; typeof(b)
+ n <- "Carcinus maenas"; typeof(n) 
+ f <- as.factor(c("A", "A", "B", "C", "A", "B", "B", "C", "C")); typeof(f)
+```
+
+This becomes very important e.g. for statistical modelling, since the types prompt different kinds of analysis or plotting. The  types also require different amount of space in the computer memory.^[Objects that contain data of mixed types will be coerced into the more flexible type. e.g. a vector `c("a", 1)` will be of type `"character"`.] 
+
+It is useful to understand that for modelling purposes and computationally intensive tasks. 
+
+data type | usage  | bits  per value 
+---------- | ------- | -------------------------------------
+"logical" | for boolean TRUE/FALSE values, for binary data (e.g. survival) | 1
+"integer" | for count data, for factorial data | 3 - 32
+"double" | for non-integer, float numbers, percentages etc. |  32
+"character" | for strings of characters, written information, non-repeating words | many thousand, 8 per character
+
+## the object class
+
+In general, variables are 'objects'. There are many object classes that come with different features. Just a few examples: 
+
+```{r}
+ f <- as.factor(c("A", "A", "B", "C", "A", "B", "B", "C", "C")); class(f)
+ m <- matrix(sample(1:25,25), nrow = 5); class(m)
+ d <- data.frame(x = f, y = c(1,1,1.4,1.2,1.3,1.2,1.4,1.2,1.1)); class(d)
+ l <- list(ratio = x, species = n, abundance = v, sample = f, covars = d, mat = m); class(l)
+ b <- TRUE; class(b)
+```
+
+Thus, R can store single numerical or character values, it can store vectors of values (using `c()`), and more complex data structures like homogeneous data matrices (`matrix()`)^[There is a multidimensional version of matrix, called an array (`array()`).] or heterogeneous data tables (`data.frame()`).  The most complex object is a list (`list()`), which can contain multiple objects of different class. 
+
+object class |  dimensions | function for creation | type of data 
+------------ | ---- | ---------------------- | ---------------
+single value | no dimensions | e.g. `2.32`, `"a"`, `FALSE` | any type (numerical, integer, factor, binary, character)
+vector   |  one dimensional | `c()` | a vector of single values of the same type
+dataframe | two-dimensional | `data.frame()` | contains multiple vectors of same length
+matrix | two-dimensional | `matrix()` | contains values of same type in rows and columns 
+array | n-dimensional | `array()` | contains values of same type in n-dimensions
+list | undimensional | `list()` | contains entries of different types of objects 
+
+Use the function `str()` to review the content and structure of an object
+
+```{r}
+str(d)
+str(l)
+```
+
+The **main purpose of an object class is standardisation**. Functions defined to handle an object class will know where to find which information, e.g. the columns and rows of a matrix, the entries of a list. Many more object classes do exist. E.g. `"lm"` the output of a linear model: 
+
+```{r}
+model <- lm(v ~ f); class(model)
+summary(model) 
+```
+
+While the `summary()` function just reports the most important information in a conveniently readable form, the full content of the object can be accessed  using
+
+```{r}
+str(model)
+```
+
+Note that **most complex objects are actually lists** that were created following a particular structure. 
+Most packages add a couple of new object classes to your R installation which might specify the consumers of a food web, the species names of a datasett, the GPS coordinates of your sample point. 
+
+ In R it is easy to define own object classes:
+
+```{r}
+group <- structure( list(
+  species = c("P.lugubris", "L.forficatus", "F.candida", "H.nitidus"),
+  bodysize = c(25.3, 90.1, 0.10, 0.14),
+  predator = c(TRUE, TRUE, FALSE, FALSE), 
+  interactions = data.frame( 
+    pred = c(1,1,2,2,2),
+    prey = c(3,4,1,3,4)
+      )
+  ), 
+  class = "foodweb"
+)
+```
+
+
+## access content of an object
+
+There are two ways to access content of an object: 
+
+ - access by position
+ - access by name
+
+The easiest way is to use the squared brackets `[]` to address a particular position in the object. This allows you to extract a single value or range of values of a vector
+
+```{r}
+v[3]
+v[3:6]
+```
+
+or the columns or rows of a data frame or matrix
+
+```{r, eval = FALSE}
+d[,1]
+d[1:3,]
+m[1:3,1:3]
+```
+
+Note that the first value in the squared brackets gives the rows, the second gives the rows. 
+
+To access list entries, which applies to most complex objects that you will encounter in R, you will have to use the double squared brackets. 
+
+```{r, eval = FALSE}
+l[[5]]
+```
+
+Note that you can sequentially combine these prompts:
+
+```{r, eval = FALSE}
+l[[5]][1:4,]
+```
+
+The second method to access content is 'by name', which works for the columns of data frames and the entries in lists. To do this, the object entries have to have names in the first place. 
+
+```{r, eval = FALSE}
+d$x
+l$species
+l$covars$x
+model$coefficients
+```
+
+
+
+
+# functions
+
+> everything you do in R is done by a function!
+
+Functions are the core concept of any programming language. You have a given set of functions that take a particular *input* variable and return a defined *output* variable. The base package already provides many fundamental ones for doing maths and plotting. The standard format of a function is 
+
+```{r, eval = FALSE}
+function(x, ... )
+```
+
+where `x` is the first argument of the function, it's *input* object^[some functions require a second input argument, or maybe even more], and `...` can be a variable number of function arguments that specify the function's behaviour. Examples: 
+
+```{r}
+mean(v)       # returns the mean of the values  
+runif(12)     # returns random numbers from uniform distribution between 0 and 1
+sample(1:100, 12)   # samples 12 values from the vector given in the first argument
+rep(c("A","B","C"), each = 10)  # repeats each of the values in the vector ten times
+cor(v, d$y, method = "pearson")   # returns pearson correlation of the two vectors
+t.test(v, d$y)  # runs a t.test to compare the two vectors
+
+# some functions have a very different syntax
+1:5           # returns a sequence of integer numbers
+2 + 2 == 5    # logical operators `==` and `!=` are functions
+
+# plot functions don't return an output to the console, but they open a plot window.
+plot(v, d$y)  
+plot(d)
+plot(f, v)
+``` 
+
+# Wrap up:
+
+**Objects** and **Functions** are the grammar of R. Imagine objects as nouns and functions as verbs, e.g. 
+
+- `average` `bodysizes`
+- `plot` `productivity` against `temperature`
+- `fit relationship` between `diversity` and `temperature`
+
+By the way: if the function you require does not exist, just write it: 
+
+```{r}
+add_one_to <- function(x) x+1
+a <- c(0.23,0.53,0.42,0.75,0.26)
+
+add_one_to(a)
+
+```
+
+
+
