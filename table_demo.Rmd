@@ -1,0 +1,35 @@
+---
+output: word_document
+---
+
+
+```{r, echo = FALSE}
+library(knitr)
+ 
+rawdata <- read.csv("rawdata.csv")  
+plots <- read.csv("plots.csv")  
+
+data <- subset(rawdata, notes == "")
+plots2013 <- subset(plots, year == "2013")
+data <- cbind(data, plots2013[match(data$plot, plots2013$plot), -c(1,2)])
+
+# round float numbers (double)
+#for(cols in names(data)[sapply(data, is.double)]) {
+#  data[[cols]] <- round(data[[cols]], digits = 2)
+#}
+
+kable(data, digits = 2)
+
+```
+
+\newpage
+
+```{r, echo = FALSE}
+model <- lm(shannon ~ grazing * fenced, data = data)
+
+summary(model)
+anova(model)
+
+kable(anova(model), digits = 4)
+```
+
