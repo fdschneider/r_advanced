@@ -1,0 +1,895 @@
+---
+title: "Advanced R"
+author: "Florian D. Schneider"
+date: "16. November 2015"
+output: 
+  ioslides_presentation: 
+    fig_height: 3.5
+    fig_width: 5.5
+    transition: faster
+    widescreen: yes
+---
+
+#
+
+<a rel="license" href="http://creativecommons.org/licenses/by/4.0/"><img alt="Creative Commons License" style="border-width:0" src="https://i.creativecommons.org/l/by/4.0/88x31.png" /></a><br /><span xmlns:dct="http://purl.org/dc/terms/" href="http://purl.org/dc/dcmitype/Text" property="dct:title" rel="dct:type">R advanced script</span> by <span xmlns:cc="http://creativecommons.org/ns#" property="cc:attributionName">Florian Schneider</span> is licensed under a <a rel="license" href="http://creativecommons.org/licenses/by/4.0/">Creative Commons Attribution 4.0 International License</a>.
+
+## Poll
+
+1. recap: objects and functions *
+2. file handling: save and load data from/to file  
+3. data crunching: subset and transform data (e.g. tapply) *
+4. conditions and loops: if, for, while, lapply * 
+5. **build your plot: multi-panel layouts, labels, colors** ***
+6. **output for production: dynamic reports and tables in word and pdf** ***
+7. best practices for coding: version control, documentation, open source
+
+
+## The problem: simplify computational workflow
+
+A defined workflow: 
+
+- is easy to reproduce plots and tables if the data change
+- is easy to reproduce by collaborators, reviewers and your future self
+- is robust against data errors: figures, tables and analysis are based on the same raw data
+- is easy to publish (open source)
+
+## A reproducible workflow example
+
+1. read raw sampling data from file "rawdata.csv"
+2. read supplementary plot information from "plots.csv"
+3. eliminate irrelevant columns and rows from "rawdata.csv" 
+4. calculate some descriptive statistics for rows in "plots.csv" and merge to rawdata. Save as "data.Rd"
+5. perform statistical test on "data.Rd" and save summary output table to "stats.Rd"
+6. generate plot from "data.Rd" that shows the raw data distribution and save to "fig1.pdf"
+7. generate plot visualising the statistical test (5.) and save to "fig2.pdf"
+8. embed figures and table, as well as values from statistics in manuscript. 
+
+## learn along the way
+
+- recap: what are objects and functions in R? 
+- load data and save output
+- composing a plot: multi-panel layouts, labels, colors
+- output for production: dynamic reports and tables in word and pdf
+
+sorry, no time for
+
+- calculate summary data from data tables using tapply
+- loops with `for()` and `while()`
+
+## recap: Functions
+
+Input -> FUNCTION -> output 
+
+```{r, eval = FALSE}
+function(x, ... )
+```
+
+see the manual for any function by calling `help()` or `?`, e.g.
+
+```{r, eval = FALSE}
+?lm
+```
+
+## recap: Functions
+
+Define an own function
+
+```{r}
+add_one_to <- function(x) {
+       x+1
+}
+
+a <- c(0.23,0.53,0.42,0.75,0.26)
+add_one_to(a)
+```
+
+
+# 1. read in raw data
+
+## raw-data structure 
+
+**Do:**
+
+- **one line = one data point**
+- **save measured raw data**, no transformed or derived data
+- **save in .csv or .txt format**, not .xxls
+
+**Don't** 
+
+- merge cells 
+- put replicates in the same row
+- put different treatments in the same row
+- keep empty lines (missing data values are okay!)
+
+## Column names
+
+- unique within the table
+- unambiguous and easy to remember 
+- use either only lower case *or* only upper case letters
+- no spaces or points or special characters, except`_`
+- english
+
+
+## read raw data
+
+```{r}
+rawdata <- read.table("rawdata.csv", header = TRUE, sep = ",", dec = ".") 
+rawdata <- read.csv2("rawdata.csv", sep = ",", dec = "." )
+rawdata <- read.csv("rawdata.csv")  
+```
+
+
+# Exercise 1
+
+## Exercise 1
+
+We are assuming an experiment:
+
+- 12 grassland plots of varying land use intensity 
+- The amount of fertilization, frequency of grazing by cattle and mowing are documented for each plot. 
+- temperature and precipitation
+- On four subplots, insect diversity is assessed
+- two subplots are fenced against grazing by large herbivores
+- Sampling was done in two years (2013,2014)
+ 
+## Exercise 1
+
+- read data tables: "rawdata.csv" and "plots.csv"
+
+
+## Exercise 1
+
+- read data tables: "rawdata.csv" and "plots.csv"
+
+```{r, eval = FALSE}
+setwd("C:/path/to/workingdirectory")
+
+```
+```{r}
+rawdata <- read.csv("rawdata.csv")  
+plots <- read.csv("plots.csv")  
+```
+
+Tipp: Use RStudio projects!
+
+# recap: object classes
+
+## recap: object classes
+
+**[Excurse: Objects](https://dl.dropboxusercontent.com/u/4625163/AdvancedR/objects.html)**
+
+
+
+# 2. data handling
+
+## select data columns I
+
+`attach()` and `detach()` 
+
+```{r, eval = FALSE}
+str(rawdata)
+attach(rawdata)
+plot(shannon ~ fenced)
+detach(rawdata)
+```
+
+ **Using `attach()` is considered bad practice!**
+ 
+## select data columns II
+
+The `$` or `[]` selector
+
+```{r, eval = FALSE}
+lm(rawdata$shannon ~  rawdata$fenced)
+```
+
+or, 
+
+```{r, eval = FALSE}
+shannon <- rawdata$shannon
+fenced <- rawdata$fenced
+lm(shannon ~ fenced)
+```
+
+## select data columns III
+
+`with()` environment
+
+```{r, eval = FALSE}
+with(rawdata, lm(shannon ~ fenced))
+```
+
+## select data columns IV
+
+**Best practice advice:** use the `data` parameter
+
+```{r, eval = FALSE}
+lm(shannon ~ fenced, data = rawdata)
+```
+
+
+## select data rows I
+
+```{r, eval = FALSE}
+data1 <- rawdata[-c(42)]
+data1 <- rawdata[-c(42:64)]
+```
+
+## select data rows II
+
+'logical expressions'
+ 
+- `A == B`  
+- `A != B` 
+- `A < B`, `A > B` 
+- `A <= B`, `A >= B` 
+- `A %in% B` 
+
+return logical values: `TRUE` or `FALSE`
+
+## select data rows II
+
+```{r}
+1:10 > 6
+f <- as.factor(c("A", "A", "B", "C", "A", "B", "B", "C", "C"))
+f == "A"
+6 %in% 1:5 
+c("SCH", "HAI", "ALB") %in% c("HAI") 
+```
+
+## select data rows II
+
+select rows from a data table: 
+
+```{r}
+d <- data.frame(x = f, y = c(1,1,1.4,1.2,1.3,1.2,1.4,1.2,1.1))
+d[d$x == "C",]
+d[d$y >= 1.3,]
+```
+
+
+## select data rows II
+
+use the `subset()` function
+
+```{r}
+subset(d, x == "C")
+subset(d, y >= 1.3)
+```
+
+## select data rows II
+
+**A side note on factor levels:** If you want to eliminate factor levels  specify the argument `drop = TRUE`:
+
+```{r}
+f[f == "A"]
+f[f == "A", drop = TRUE]
+```
+
+
+# Exercise 2
+
+## Exercise 2
+
+1. create a table that contains only the fenced replicates.
+2. eliminate flawed data points from rawdata (see column 'notes').
+3. Species data for 2014 are not available yet. Eliminate 2014 values from `plots`!
+4. merge the plot information of 2013 to the rawdata table. (hint: use `merge()`)
+5. save the result as your working data `data.Rd` or `data.csv`.
+
+
+## Exercise 2
+
+```{r}
+data <- subset(rawdata, notes == "")
+plots2013 <- subset(plots, year == "2013")
+data <- merge(data, plots2013, by.x = "plot", by.y = "plot")
+write.csv(data, "data.csv")
+save(data, data, file = "data.Rd")
+```
+
+
+# 3. data analysis
+
+## statistical modelling
+
+```{r}
+model <- lm(shannon ~ grazing * fenced, data = data )
+anova(model)
+```
+
+## many things | I will not cover today
+
+How to aggregate and transform data 
+
+- `apply()`
+- `tapply()`
+- `for()` loops
+- package `plyr` and `dplyr`
+
+please look up documentations and help files. 
+
+
+# 4. Plotting
+
+## high-level vs. low-level  commands
+
+**high-level**:  create a new plot  
+
+**low-level**: add something to an existing plot
+
+**graphical parameters**: set the stage/canvas
+
+
+## examples: high-level
+
+scatterplots: `plot()`
+
+```{r}
+plot(shannon ~ grazing, data = data)
+```
+
+
+## examples: high-level
+
+- line plots: `plot(..., type = "l")`
+
+```{r, echo = FALSE}
+x <- seq(0,1,length = 50)
+y <-  0.2 + 0.4*x - 1.5*x^2 + 1.15*x^3
+```
+```{r}
+plot(x, y, type = "l", ylab = "Y", xlab = "x",  ylim = c(0,0.5))
+```
+
+## examples: high-level
+
+- boxplots: `boxplot()`
+
+```{r}
+boxplot(shannon ~ fenced, data = data)
+```
+
+## examples: high-level
+
+-  histograms: `hist()`
+
+```{r}
+hist(data$shannon, breaks = 24)
+```
+
+## examples: high-level
+
+- 3D perspective plots: `persp()`
+```{r, echo = FALSE}
+y <- x
+dd <- expand.grid(data.frame(x,y))
+dd$z <- with(dd, 0.1 + 0.4*x - 1.5*x^2 + 1.15*x^3 + 0.2*y - 0.4*y^2 + 0.3*y^3 + 0.2*x*y - 0.23 *x^2*y^2 + 0.33 *x^3*y^3)
+z <-  matrix(dd$z, nrow = 50, byrow = FALSE)
+```
+
+```{r}
+persp(x,y,z, ticktype = "detailed", zlim = c(0,0.6), shade = 0.4) 
+```
+
+## high-level plot options
+
+- **plotting region**: axis limits (`xlim` and `ylim`, `xaxs` and `yaxs`), boxtype (`bty`) and background (`bg`), fix aspect ratio (`asp`)
+- **axis style**: logarithmic plotting (`log = "xy"`), axis label orientation (`las`), font size (`cex.axis`), specify tick mark labels (`labels`), tick mark position (`xaxp` and `yaxp`) , tick length (`tck`)
+- **text labels**: axis labels (`ylab` and `xlab`), plot titles (`main` and `sub`)
+- **point formatting**: point size (`cex`), point character (`pch`), colors (`col` and `fg`) 
+- **line formatting**: line type (`lty`) and line width (`lwd`), colors (`col`) 
+
+look up `?par` and plot specific help files.
+
+## examples: low-level
+
+- `points()` 
+
+```{r, echo = FALSE}
+plot(shannon ~ grazing, ylim = c(0,3), 
+     data = subset(data, fenced == TRUE), pch = 20 )
+points(shannon ~ grazing, data = subset(data, fenced == FALSE), 
+      pch = 20, col = "red")
+```
+
+
+## examples: low-level
+
+- lines: `abline()` and `lines()`
+
+```{r, echo = FALSE}
+plot(shannon ~ grazing, ylim = c(0,3), data = data, pch = 20 )
+model <- lm(shannon ~ grazing, data = data )
+abline(model)
+lines(c(1,4), c(3,2), lwd  = 2)
+```
+
+
+## examples: low-level
+
+- `axis()`
+
+```{r, echo = FALSE}
+plot(shannon ~ grazing, ylim = c(0,3), data = data, pch = 20 )
+axis(4)
+```
+
+## examples: low-level
+
+- `legend()`
+
+```{r, echo = FALSE}
+plot(shannon ~ grazing, ylim = c(0,3), data = data, 
+     pch = 20, col =c("black", "red")[fenced+1] )
+legend(3.5,3, c("open", "exclosure"), pch = c(20), 
+       col = c("black", "red"))
+```
+
+
+## low-level options
+
+- same as for high-level
+- `xpd`: plot outside of plotting region. 
+
+look up `?par` and function help files.
+
+## graphical parameters
+
+Highest level of definitions
+
+```{r, eval = FALSE}
+par(...)
+```
+
+
+## graphical parameters
+
+- outer and inner margins (bottom, left, upper, right)
+
+```{r, eval = FALSE}
+par(mar = c(5,4,3,3)+0.1, oma = c(2,2,1,1))
+plot(x,y, ...)
+
+```
+
+```{r, echo = FALSE}
+par(mfrow = c(1,1), oma = c(0,0,0,0),mar = c(0,0,0,0), bg = "grey70")
+plot(1,1, bty = "o", type = "n", xaxt = "n", yaxt = "n", bty = "o", fg = "grey50")
+
+par(oma = c(2,2,1,1),mar = c(0,0,0,0), new = TRUE)
+plot(1,1, bty = "n", type = "n", xaxt = "n", yaxt = "n", bty = "o", fg = "grey50")
+#abline(v = 1, col = "grey50")
+
+par(mar = c(5,4,3,3)+0.1, new = TRUE)
+plot(1, 1, bty = "n", type = "n", xaxt = "s", yaxt = "s", xlab = "x", ylab = "y")
+rect(0,0,2,2, col = "white")
+box(col = "black", bty = "o")
+
+```
+
+
+## graphical parameters
+
+- multi-panel grid
+
+```{r, eval = FALSE}
+par(mfrow = c(2,2))
+plot(x,y, ...)
+plot(x,y, ...)
+plot(x,y, ...)
+plot(x,y, ...)
+```
+
+## graphical parameters
+
+- multi-panel grid
+
+```{r, echo = FALSE, fig.width = 7, fig.height = 4}
+par(mfrow = c(2,2), bg = "grey70")
+
+plot(1, 1, bty = "n", type = "n", xaxt = "s", yaxt = "s", xlab = "x", ylab = "y")
+rect(0,0,2,2, col = "white")
+box(col = "black", bty = "o")
+plot(1, 1, bty = "n", type = "n", xaxt = "s", yaxt = "s", xlab = "x", ylab = "y")
+rect(0,0,2,2, col = "white")
+box(col = "black", bty = "o")
+plot(1, 1, bty = "n", type = "n", xaxt = "s", yaxt = "s", xlab = "x", ylab = "y")
+rect(0,0,2,2, col = "white")
+box(col = "black", bty = "o")
+plot(1, 1, bty = "n", type = "n", xaxt = "s", yaxt = "s", xlab = "x", ylab = "y")
+rect(0,0,2,2, col = "white")
+box(col = "black", bty = "o")
+
+```
+
+
+# Examples
+
+## format points
+
+```{r}
+plot(shannon ~ grazing, data = data, 
+     pch = c(18,20)[fenced+1],  
+     col = c( "black", "red")[fenced+1]
+     )
+```
+
+## format points
+
+Tipps:
+
+- `pch` can be characters: `pch = c("A","B")`
+- use filled characters (diamonds `18` or points `20`) rather than open ones (crosses `3` or `4` or circles `1`)
+- use distinctive colors, if any
+
+## format points
+
+```{r, echo = FALSE, fig.width = 8, fig.heigt = 7}
+pchShow <-
+  function(extras = c("*",".", "o","O","0","+","-","|","%","#"),
+           cex = 3, ## good for both .Device=="postscript" and "x11"
+           col = "red3", bg = "gold", coltext = "brown", cextext = 1.2,
+           main = paste("plot symbols :  points (...  pch = *, cex =",
+                        cex,")"))
+  {
+    nex <- length(extras)
+    np  <- 26 + nex
+    ipch <- 0:(np-1)
+    k <- floor(sqrt(np))
+    dd <- c(-1,1)/2
+    rx <- dd + range(ix <- ipch %/% k)
+    ry <- dd + range(iy <- 3 + (k-1)- ipch %% k)
+    pch <- as.list(ipch) # list with integers & strings
+    if(nex > 0) pch[26+ 1:nex] <- as.list(extras)
+    plot(rx, ry, type = "n", axes  =  FALSE, xlab = "", ylab = "", main = main)
+    abline(v = ix, h = iy, col = "lightgray", lty = "dotted")
+    for(i in 1:np) {
+      pc <- pch[[i]]
+      ## 'col' symbols with a 'bg'-colored interior (where available) :
+      points(ix[i], iy[i], pch = pc, col = col, bg = bg, cex = cex)
+      if(cextext > 0)
+          text(ix[i] - 0.3, iy[i], pc, col = coltext, cex = cextext)
+    }
+  }
+
+pchShow()
+```
+
+## add model lines
+
+- function `predict()`
+
+```{r}
+model <- lm(shannon ~ grazing * fenced, data = data)
+grazing_new <- seq(0, 500, length = 50)
+shannon_pred <- predict(model, 
+                    newdata = list(
+                      grazing = grazing_new, 
+                      fenced = rep(FALSE, 50)
+                      ), se.fit = TRUE
+                    )
+```
+
+## add model lines
+
+```{r}
+plot(shannon ~ grazing, data = data, pch = 20)
+lines(grazing_new, shannon_pred$fit)
+
+```
+
+
+## add model lines
+
+```{r}
+plot(shannon ~ grazing, data = data, pch = 20)
+lines(grazing_new, shannon_pred$fit)
+lines(grazing_new, shannon_pred$fit + shannon_pred$se.fit, lty = 3)
+lines(grazing_new, shannon_pred$fit - shannon_pred$se.fit, lty = 3)
+```
+
+
+```{r, echo = FALSE}
+shannon_pred_0 <- predict(model, 
+                    newdata = list(
+                      grazing = grazing_new, 
+                      fenced = rep(TRUE, 50)
+                      ), se.fit = TRUE
+                    )
+```
+
+
+
+
+## pretty boxplots
+
+- Box plots are noisy:
+
+```{r, fig.width = 4}
+boxplot(shannon ~ fenced, data = data, ylim = c(0,3) )
+```
+
+## pretty boxplots
+
+- Box plots are noisy:
+
+```{r, fig.width = 4}
+boxplot(shannon ~ fenced, data = data, ylim = c(0,3),
+        pars = list(boxwex = 0.4, staplewex = 0, 
+                    whiskwex = 0, whisklty = 1))
+```
+
+## multi-panel layout
+
+- mfrow 
+
+```{r}
+par(mfrow = c(2,3))
+layout.show(n = 6)
+```
+
+## multi-panel layout
+
+- `layout()`
+
+```{r}
+m <- matrix(c(1,1,1,2,3,6,4,5,6), byrow = TRUE, ncol = 3)
+m
+```
+
+## multi-panel layout
+
+- `layout()`
+
+```{r}
+layout(m)
+layout.show(n = 6)
+```
+
+## multi-panel layout
+
+- `layout()`
+
+```{r}
+layout(m , height = c(1,2,2), width = c(2,2,1))
+layout.show(n = 6)
+```
+
+
+## multi-panel layout
+
+- `layout()` with a complex matrix `m`: 
+
+```{r, echo = FALSE}
+m <- matrix(rep(0, 36), byrow = TRUE, ncol = 6)
+m[1:5,1:5] <- 1
+m[6,1:2] <- 2
+m[6,3:4] <- 3
+m[6,5:6] <- 4
+m[1:2,4:5] <- 5
+m[1:3,6] <- 6
+m
+```
+
+
+## multi-panel layout
+
+
+```{r, fig.height = 4, fig.width = 7}
+layout(m , height = c(1,1,1,1,1,3), width = c(1,2,1,2,1,2))
+layout.show(n = 6)
+```
+
+
+## multi-panel layout
+
+```{r, eval = FALSE}
+layout(m , height = c(1,1,1,1,1,3), width = c(1,2,1,2,1,2))
+# ...
+```
+
+```{r, echo = FALSE, fig.height = 4, fig.width = 7}
+layout(m , height = c(1,1,1,1,1,3), width = c(1,2,1,2,1,2))
+
+par(mar = c(4,4,1,3))
+plot(shannon ~ grazing, data = data, ylim = c(0,3), cex = 2)
+mtext("a)", adj = 0, line = -1.5)
+par(mar = c(5,4,1,1))
+boxplot(shannon ~ I(grazing > 0), data = data)
+mtext("b)", adj = 0, line = -1.5)
+boxplot(shannon ~ I(fertilization > 30), data = data)
+mtext("c)", adj = 0, line = -1.5)
+boxplot(shannon ~ I(mowing > 0), data = data)
+mtext("d)", adj = 0, line = -1.5)
+
+par(mar = c(4,4,2,4))
+hist(data$shannon, main = NA, col = "black", breaks = seq(0,3,0.1), xlab = NA)
+par(mar = c(1,1,1,1))
+contour(x,y,z)
+mtext("e)", adj = 0, line = -1.5)
+
+```
+
+# Exercise 4
+
+## Exercise 4
+
+- try to reproduce as many features of this plot as you can:
+
+```{r, echo = FALSE}
+par(mar = c(4,4,1,1), las = 1, bty = "l")
+plot(shannon ~ grazing, data = data, yaxp = c(0,3,3), ylim = c(0,3),  yaxs = "i", pch = c(21), bg = c("black", "white")[fenced+1], ylab = "Diversity", xlab = "grazing [livestock units/ha]")
+legend(350,3, c("open", "exclosure"),pch = c(21), pt.bg = c("black", "white"), bty = "n")
+lines(grazing_new, shannon_pred$fit)
+lines(grazing_new, shannon_pred$fit + shannon_pred$se.fit, lty = 3)
+lines(grazing_new, shannon_pred$fit - shannon_pred$se.fit, lty = 3)
+lines(grazing_new, shannon_pred_0$fit, col = "grey50")
+lines(grazing_new, shannon_pred_0$fit + shannon_pred_0$se.fit, lty = 3, col = "grey50")
+lines(grazing_new, shannon_pred_0$fit - shannon_pred_0$se.fit, lty = 3, col = "grey50")
+
+```
+
+
+## Exercise 4
+
+- horizontal axis labels: `par(las = 1)`
+- open box around plot: `par(bty = "l")`
+- reduced margins: `par(mar = c(4,4,1,1))` 
+- differentiate point characters: 
+  `plot(..., pch = 21, bg = c("black", "white")[fenced+1])`
+- set axis lengths: 
+  `plot(..., yaxp = c(0,3,3), ylim = c(0,3), yaxs = "i")`
+- axis labels: 
+  `plot(..., ylab = "Diversity", xlab = "grazing [livestock units/ha]")`
+- add legend: 
+  `legend(3.5,3, c("open", "exclosure"), pch = 21, pt.bg = c("black", "white"))` 
+- add lines: use of `lm()`, `predict()` and `lines()`
+
+
+
+
+# 5. Production output
+
+
+## save plots to file
+
+there are different graphics devices:
+
+Raster formats:
+
+- `bmp()` for bitmap files (no compression)
+- `png()` for gif and png files (selective color)
+- `jpg()` for jpg (pixel compression)
+- `tiff()` for tiff files (best quality/compression trade-off)
+
+Use for plots with many (>1000) datapoints or for presentations!
+use `png()` for black-and-white plots in high-resolution!
+
+## save plots to file
+
+there are different graphics devices:
+
+Vector formats:
+
+- `pdf()` for pdf plotting  
+- `postscript()` for .eps files
+
+Mostly, this is what journals want, because scalable!
+
+## save plots to file
+
+```{r, eval = FALSE}
+pdf("filename.pdf", 
+    width = 7, height = 6,  #in inches: 1in = 2.54cm
+    paper = "special",  # or "a4"
+    useDingbats = FALSE, # avoids weird symbols
+    family = "Times" # for journals that want serif
+    )
+
+plot(...)
+
+dev.off()
+```
+
+Multiple high-level plots create multi-page pdfs!
+
+## save plots to file
+
+```{r, eval = FALSE}
+png("filename.png", 
+    width = 460, height = 720,  #in pixels
+    res = 72, # set relative size of plot
+    antialias = "none" # no smoothing of pixelation 
+    family = "Times" # for journals that want serif
+    )
+
+plot(...)
+
+dev.off()
+```
+
+# Exercise 5
+
+## Exercise 5
+
+- create a .pdf and a .jpg of your previous plot
+
+# 
+
+
+## dynamic reports with knitr & Rmarkdown
+
+- Markdown input
+- R code chunks are evaluated
+- automatic bibliography
+- latex/pdf and word output
+
+Ideal for documentation of your data exploration: 
+
+- mix narrative, code, analysis and figures
+
+RStudio comes with Rmarkdown:
+[http://rmarkdown.rstudio.com/](http://rmarkdown.rstudio.com/)
+
+## Markdown 
+
+A simple markup language
+
+```
+# Title
+
+## section 
+
+text with *italics* and **bold** word highlighting.
+
+- lists
+- second point
+
+## section
+
+...
+```
+## Rmarkdown
+
+Markdown plus R code chunks
+
+see [Rmarkdowndemo.Rmd]() 
+
+```{r, eval = FALSE}
+library(rmarkdown)
+render("radvanced/Rmarkdowndemo.Rmd", pdf_document())
+```
+
+## output table with knitr
+
+knitr is an R package that turns code to plaintext output.
+
+```{r, eval = FALSE}
+library(knitr)
+kable(anova(model), digits = 3)
+```
+
+
+##  output table with knitr
+
+[table_demo.Rmd]() 
+
+```{r, eval = FALSE}
+library(rmarkdown)
+render("radvanced/table_demo.Rmd", word_document())
+```
+
+
+
+# Fin
+
+## Further reading:
+
+
+- http://adv-r.had.co.nz/ : an online book by Hadley Wickham on realy advanced things
+- http://www.rdocumentation.org/ : a collection of manual files for all R packages
+- http://rmarkdown.rstudio.com/ : on dynamic reports
+- http://www.r-bloggers.com/ : a blog aggregator for all things in R
+
