@@ -1,0 +1,55 @@
+---
+title: "The effect of grazing"
+author: "Florian Schneider"
+date: '`r Sys.Date()`'
+output: word_document
+---
+
+I am exploring the effect of grazing on species Diversity for 2013 sampling. 
+
+## Experimental set-up
+
+We are analysing an experiment with 12 grassland plots of varying land use intensity that are distributed in a larger landscape. The amount of fertilization, frequency of grazing by cattle and mowing are documented for each plot. Also, each plot has a small weather station that measures temperature and precipitation. On four subplots, insect diversity is assessed, two of which are fenced against grazing by large herbivores. Sampling was done in two years (2013,2014). The data files rawdata.csv and plots.csv contain the response data on the sub-plots and the explanatory data on the plots. 
+
+## Distribution of data
+
+```{r, echo = FALSE}
+rawdata <- read.csv("rawdata.csv")  
+plots <- read.csv("plots.csv")  
+
+d <- subset(rawdata, notes == "")
+plots2013 <- subset(plots, year == "2013") # extract 2013 plot data
+d <- cbind(d, plots2013[match(d$plot, plots2013$plot), -c(1,2)])
+
+```
+
+```{r, fig.width = 5.5}
+summary(d$shannon)
+
+layout(matrix(c(1,2,3,3), ncol = 2, byrow = TRUE))
+par(mar = c(4,4,1,1))
+hist(d$shannon, col = "black", breaks = 12, main = NA)
+boxplot(shannon ~ fenced, data = d)
+plot(shannon ~ grazing, data = d, pch = 20, col = fenced+1, log = "x")
+
+```
+
+
+The linear model describing diversity, $H$, is defined as 
+
+$$ H =  \alpha + \beta g + \gamma f + \delta bf + \varepsilon \,,$$
+
+with the explanatory variables grazing ($g$) and the binary variable fencing ($f$) which takes value 0 for $\gamma$ unfenced and 1 for fenced subplots.  
+
+The code for this fitting is: 
+
+```{r}
+model <- lm(shannon ~ grazing * fenced, data = d)
+```
+
+```{r, echo = FALSE}
+library(knitr)
+kable(anova(model), digits = 4)
+```
+
+The effect of grazing on diversity is highly significant ($p = `r round(anova(model)[1,5], digits = 4)`$).
