@@ -1,4 +1,4 @@
-Script for a cladd on advanced R programming 
+Script for a class on advanced R programming 
 ============================================
 
 This tutorial covers 
